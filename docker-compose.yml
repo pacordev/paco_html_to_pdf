@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: printpdf-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: printpdf
+      POSTGRES_USER: printpdf
+      POSTGRES_PASSWORD: printpdf
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U printpdf -d printpdf"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: printpdf-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://printpdf:printpdf@db:5432/printpdf
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
