@@ -1,0 +1,6 @@
+# Synthetic seed data — not representative source code
+seed_data.sql linguist-generated=true
+
+# HTML template assets, not application code
+invoice.html linguist-documentation=true
+templates/invoice.html linguist-documentation=true
