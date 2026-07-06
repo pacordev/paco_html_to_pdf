@@ -1,3 +1,12 @@
+# FastAPI app exposing two endpoints:
+#   GET /invoices/{invoice_number}  -> renders the invoice as HTML
+#   GET /createpdf/{invoice_number} -> renders the same invoice and converts
+#                                       it to a downloadable PDF
+#
+# Both endpoints require a `contact` query parameter (the client's email or
+# phone number on file) so that knowing an invoice_number alone isn't enough
+# to view someone else's invoice.
+
 import re
 
 from fastapi import FastAPI, HTTPException, Query
@@ -11,6 +20,8 @@ app = FastAPI(title="PrintPDF Invoice API")
 
 jinja_env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
 
+# Joins invoice -> company -> client so a single query returns everything
+# the template needs except the line items themselves.
 INVOICE_QUERY = """
     SELECT
         i.id, i.invoice_number, i.invoice_date, i.due_date,
@@ -33,10 +44,18 @@ ITEMS_QUERY = """
     ORDER BY id
 """
 
+# Filenames are echoed back into a Content-Disposition header, so anything
+# other than letters, digits, dots, underscores and hyphens is stripped out
+# to avoid header injection / path weirdness.
 UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def fetch_invoice(invoice_number: str, contact: str):
+    """Look up an invoice and its line items, enforcing the contact check.
+
+    Shared by both endpoints so the lookup/authorization logic only lives
+    in one place.
+    """
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(INVOICE_QUERY, (invoice_number,))
@@ -45,6 +64,9 @@ def fetch_invoice(invoice_number: str, contact: str):
             if invoice is None:
                 raise HTTPException(status_code=404, detail="Invoice not found")
 
+            # Treat `contact` as a shared secret: it must match the email or
+            # phone number on file for this invoice's client, not just any
+            # valid-looking value.
             if contact.strip().lower() not in (
                 (invoice["client_email"] or "").lower(),
                 (invoice["client_phone"] or "").lower(),
@@ -58,6 +80,7 @@ def fetch_invoice(invoice_number: str, contact: str):
 
 
 def render_invoice_html(invoice, products) -> str:
+    """Render templates/invoice.html with data from a fetch_invoice() call."""
     template = jinja_env.get_template("invoice.html")
     return template.render(
         invoice_number=invoice["invoice_number"],
@@ -81,6 +104,11 @@ def render_invoice_html(invoice, products) -> str:
 
 
 def sanitize_filename(name: str) -> str:
+    """Collapse any run of unsafe characters into a single hyphen.
+
+    Falls back to "invoice" if that leaves nothing usable (e.g. name was
+    empty or made up entirely of unsafe characters).
+    """
     name = UNSAFE_FILENAME_CHARS.sub("-", name.strip()).strip("-")
     return name or "invoice"
 
@@ -90,6 +118,7 @@ def render_invoice(
     invoice_number: str,
     contact: str = Query(..., description="Client email or phone number, used to authorize the request"),
 ):
+    """Return the invoice rendered as a standalone HTML page."""
     invoice, products = fetch_invoice(invoice_number, contact)
     html = render_invoice_html(invoice, products)
     return HTMLResponse(content=html)
@@ -101,6 +130,11 @@ def create_pdf(
     contact: str = Query(..., description="Client email or phone number, used to authorize the request"),
     filename: str = Query(None, description="Name for the downloaded PDF file, without extension"),
 ):
+    """Render the invoice and stream it back as a downloadable PDF.
+
+    `filename` lets the caller name the download; it defaults to the
+    invoice number when omitted.
+    """
     invoice, products = fetch_invoice(invoice_number, contact)
     html = render_invoice_html(invoice, products)
     pdf_bytes = html_to_pdf(html)
