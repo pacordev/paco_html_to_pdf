@@ -5,6 +5,14 @@ pulled from a Postgres database, and can render it either as HTML or as a
 downloadable PDF (via `wkhtmltopdf`). The templating/rendering approach can
 be reused for any HTML template of the same style.
 
+## Architecture
+
+![Runtime architecture diagram](docs/diagram_ptpdf.png)
+
+An interactive, explorable version of this diagram (with source-linked
+component detail) is available at
+[`docs/printpdf-architecture.html`](docs/printpdf-architecture.html).
+
 ## Tech stack
 
 - **[FastAPI](https://fastapi.tiangolo.com/)** — Python web framework serving the API
