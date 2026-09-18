@@ -10,8 +10,8 @@ be reused for any HTML template of the same style.
 ![Runtime architecture diagram](docs/diagram_ptpdf.png)
 
 An interactive, explorable version of this diagram (with source-linked
-component detail) is available at
-[`docs/printpdf-architecture.html`](docs/printpdf-architecture.html).
+component detail) is published at
+[pacordev.github.io/paco_html_to_pdf/docs/printpdf-architecture.html](https://pacordev.github.io/paco_html_to_pdf/docs/printpdf-architecture.html).
 
 ## Tech stack
 
